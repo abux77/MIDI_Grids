@@ -1,27 +1,18 @@
-# Pico MIDI Grids — C SDK port
+# MIDI Grids
 
-Standalone C11 firmware for the original Raspberry Pi Pico (RP2040, 2 MiB flash).
-The supplied MicroPython v0.6 and PVS projects have not been changed.
+This is based on the Mutable Instruments Grid module. I liked the idea of it but I don't have any eurorack modules so I thought I would make a version that fits in a guitar pedal and triggers sounds via MIDI. This has been written using the C SDK for the Raspberry Pi Pico and includes a number of features the original module didn't have. MIDI Grids supports MIDI via 5-pin DIN and USB, it also supports mono sample playback directly with 8 selectable samples per voice.
 
-## Flash and run
+## Flash and Run
 
-The compiled firmware is `build/midi_grids.uf2`. Hold BOOTSEL while connecting the
-Pico, then copy this file to RPI-RP2. Firmware updates write only the firmware
-region; the last 1 MiB is reserved for samples and protected by a linker assertion.
-Back up the old MicroPython program and samples before replacing its firmware.
+The compiled firmware is `build/midi_grids.uf2`. Hold BOOTSEL while connecting the Pico, then copy this file to RPI-RP2. Firmware updates write only the firmware region; the last 1 MB is reserved for samples and configuration files. You can access this 1 MB region by holding the Start/Stop button during power up, the region will mount in your computer like a USB drive and you can replace samples and/or edit the configuration file.
 
-Power-up is stopped. A short Start/Stop press toggles transport **on release**,
-with USB storage available only when Start/Stop is held during boot.
-DIN MIDI IN uses GP1; former MIDI channel DIP pins GP2–GP5 are unused.
 
 | Function | GPIO |
 |---|---|
 | DIN MIDI OUT / IN | GP0 / GP1, UART0, 31250 baud |
-| Unused (former MIDI DIP inputs) | GP2–GP5 |
 | Kick / snare / hi-hat / tempo LEDs | GP6 / GP7 / GP8 / GP9 |
 | Start/Stop button to ground | GP10, internal pull-up |
 | PCM5102A BCK / LRCLK / DATA | GP11 / GP12 / GP13 |
-| Unused (former USB MIDI enable switch) | GP14 |
 | CD74HC4067 S0–S3 / analog SIG | GP16–GP19 / GP26 |
 
 Mux channels 0–6 are X, Y, kick density, snare density, hi-hat density, chaos,
@@ -33,7 +24,7 @@ Audio uses a three-voice, retriggering mixer and 44.1 kHz PIO/DMA I²S, with the
 mono mix duplicated to both DAC channels. No MicroPython runtime/native modules
 are required. ADC mux scanning runs cooperatively on core 0; core 1 stays idle.
 
-## MIDI clock and transport
+## MIDI Clock and Transport
 
 - Internal tempo: 40–240 BPM; DIN and enabled USB output send 24 PPQN while playing.
 - DIN and enabled USB MIDI input accept Clock, Start, Stop and Continue.
@@ -55,33 +46,16 @@ GP1 needs your MIDI input interface's **3.3 V logic output** and common logic
 ground. The DIN connector is connected through your optocoupler circuit, not
 wired directly to GP1. DIN output hardware remains as in your existing build.
 
-## Replace samples over USB
+## Mounting MIDI Grids as a USB Drive
 
-1. Hold Start/Stop while powering on or resetting the Pico. The USB sample drive becomes available; release the button.
-2. Open the **MIDI GRIDS** volume and replace `BD01.WAV`, `SD01.WAV`, `HH01.WAV`
-   in its root directory. Add choices numbered 01–08 for each drum, such as `BD08.WAV`.
-3. Safely eject the volume. Firmware remounts it and reloads the samples automatically.
-4. Press Start/Stop to resume, or send MIDI Start/Continue. A reboot is not required.
+1. MIDI Grids has a 1 MB region you can access by holding the Start/Stop button during power up, the region will mount in your computer like a USB drive.
+2. Open the **MIDI GRIDS** volume where you are able to load samples and or edit the configuration file that is in its root directory.
+3. One you have made your changes safely eject the volume. The unit will reboot and the new samples and/or configuration will loaded.
 
-The sample drive and CDC serial remain accessible with `USB_MIDI,OFF`.
-CDC serial is available for diagnostics; it is no longer a Python REPL.
 
-WAVs must be uncompressed PCM, **mono, 16-bit, 44,100 Hz**. The three PCM payloads
-combined must fit **128 KiB** (about 1.49 seconds total across all three sounds).
-The disk itself has 1 MiB minus filesystem overhead. When the filesystem is unavailable, embedded factory WAVs play without modifying
-the existing disk. With a mounted filesystem, invalid, missing or over-budget
-samples mute the affected voice; MIDI sequencing continues. Larger sample streaming
-is outside this version. Samples are loaded into RAM before playback, and audio DMA
-is disabled throughout USB editing so it cannot race flash erase/program operations.
+## CONFIG.TXT
 
-Blank storage is automatically formatted and populated with the supplied v0.6 WAVs.
-Existing nonblank or damaged storage is preserved. **An old MicroPython installation
-may leave incompatible data in this region**, so first installation may need a reset:
-open the Pico CDC serial port and send `format` followed by Enter. This explicitly
-**erases the sample partition and restores the three supplied factory WAVs**. It
-stops audio first and is refused while the USB drive is owned by the computer.
-Edit `CONFIG.TXT` in the drive root to set each drum's output channel (1–16)
-and note (0–127), for both DIN and enabled USB output:
+Edit `CONFIG.TXT` in the drive root to set each drum's output channel (1–16) and note (0–127), for both DIN and enabled USB output:
 
 ```text
 USB_MIDI,ON
@@ -89,10 +63,21 @@ BD,CH1,N36
 SD,CH1,N38
 HH,CH1,N42
 ```
+`USB_MIDI,ON` enables the USB MIDI interface; `USB_MIDI,OFF` disables it. Missing or invalid USB
+settings default to ON. Changing USB MIDI requires a reboot to update descriptors.
 
-Drum settings and sample choices load at boot and after eject. `USB_MIDI,ON`
-enables the USB MIDI interface; `USB_MIDI,OFF` disables it. Missing or invalid USB
-settings default to ON. Changing USB MIDI requires a reboot to update descriptors;
+## Loading Samples via USB
+
+If providing your own samples they must be uncompressed PCM, **mono, 16-bit, 44,100 Hz** WAV files. Each voice can have 8 samples. Bass Drum (BD) samples are named `BD01.WAV` to  `BD02.WAV`. Snare Drum (SD) samples are named `SD01.WAV` to  `SD02.WAV`. High Hat (HH) samples are named `HH01.WAV` to  `HH02.WAV`
+
+The disk itself has 1 MiB minus filesystem overhead so you will need to be loading short samples. In addition to this all three drum samples must fit into **128 KiB** of RAM (this is about 1.49 seconds total across all three sounds).
+
+If you are using a Pico that previously had MicroPython installed you may need to format the 1 MB region. **An old MicroPython installation may leave incompatible data in this region**, so the first installation may need a reset: open the Pico CDC serial port and send `format` followed by Enter. This explicitly **erases the sample partition and restores the three supplied factory WAVs**. 
+
+
+
+
+
 CDC serial and the sample drive remain available either way. `status` reports the
 active USB setting and whether the edited configuration needs a reboot. On an existing sample drive, rename the old
 `kick.wav`, `snare.wav`, and `hihat.wav` files to `BD01.WAV`, `SD01.WAV`, and
@@ -121,27 +106,21 @@ All seven pot directions are inverted to match the hardware: clockwise increases
 
 ## Build
 
-Use the Raspberry Pi Pico VS Code extension to import this CMake project, choose
-`pico`, and build; or use an installed Pico SDK and ARM compiler:
+Use the Raspberry Pi Pico VS Code extension to import this CMake project, choose `pico`, and build; or use an installed Pico SDK and ARM compiler:
 
 ```sh
 cmake -S . -B build -G Ninja -DPICO_BOARD=pico -DPICO_SDK_PATH=/path/to/pico-sdk
 cmake --build build
 ```
 
-Validated here with Pico SDK 2.3.1 and Arm GNU toolchain 15.2.Rel1. SDK's TinyUSB
-submodule and picotool must be installed. No network dependencies are fetched by
-this project itself. Rebuild embedded defaults after modifying `samples/` or map data:
+Validated here with Pico SDK 2.3.1 and Arm GNU toolchain 15.2.Rel1. SDK's TinyUSB submodule and picotool must be installed. No network dependencies are fetched by this project itself. Rebuild embedded defaults after modifying `samples/` or map data:
 
 ```sh
 python3 tools/embed_assets.py
 cmake --build build
 ```
 
-Run portable host tests with `sh tools/test.sh` (C compiler and Python 3 required).
-They cover interpolation and engine parity, external source locking, 1/2/4 divisions,
-Start/Stop/Continue, clock loss, FAT provisioning, ownership handoff, sample loading,
-and preservation of damaged storage. See `docs/HARDWARE_VALIDATION.md` for bench tests.
+Run portable host tests with `sh tools/test.sh` (C compiler and Python 3 required). They cover interpolation and engine parity, external source locking, 1/2/4 divisions, Start/Stop/Continue, clock loss, FAT provisioning, ownership handoff, sample loading, and preservation of damaged storage. See `docs/HARDWARE_VALIDATION.md` for bench tests.
 
 ## Source and licensing
 
