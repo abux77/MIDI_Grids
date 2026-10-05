@@ -1,0 +1,18 @@
+# USB MIDI interface: ON or OFF; reboot after changing.
+USB_MIDI,ON
+
+# OP-Z profile for Pico MIDI Grids
+# Tracks: 1 kick, 2 snare, 3 percussion (used here for HH)
+# N53 is a first-key candidate; verify it on your OP-Z drum kit.
+# Enable incoming MIDI and turn OFF channel_one_to_active on the OP-Z.
+# Use full-line comments only; inline comments are not supported.
+# Commenting out a setting uses the firmware default; it does not mute MIDI.
+
+# Bass drum: OP-Z kick track
+BD,CH1,N53
+
+# Snare: OP-Z snare track
+SD,CH2,N53
+
+# Hi-hat: OP-Z percussion track
+HH,CH3,N53

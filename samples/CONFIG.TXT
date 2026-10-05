@@ -1,0 +1,6 @@
+# USB MIDI interface: ON or OFF; reboot after changing.
+USB_MIDI,ON
+
+BD,CH1,N36
+SD,CH1,N38
+HH,CH1,N42

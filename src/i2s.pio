@@ -1,0 +1,15 @@
+.program i2s
+.side_set 2
+; 16 bits per channel; LRCLK changes one bit before the next MSB.
+.wrap_target
+ set x, 14        side 1
+left_bits:
+ out pins, 1     side 0
+ jmp x-- left_bits    side 1
+ out pins, 1     side 2
+ set x, 14       side 3
+right_bits:
+ out pins, 1     side 2
+ jmp x-- right_bits   side 3
+ out pins, 1     side 0
+.wrap
